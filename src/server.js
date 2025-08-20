@@ -29,10 +29,10 @@ app.get("/master.m3u8", (req, res) => {
   const master = `#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,CODECS="avc1.640029,mp4a.40.2"
-${req.protocol}://${req.get("host")}/video.m3u8?video_url=${encodeURIComponent(
+https://${req.get("host")}/video.m3u8?video_url=${encodeURIComponent(
     video_url
   )}
-#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="Indonesian",LANGUAGE="id",AUTOSELECT=YES,DEFAULT=YES,URI="${req.protocol}://${req.get(
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="Indonesian",LANGUAGE="id",AUTOSELECT=YES,DEFAULT=YES,URI="https://${req.get(
     "host"
   )}/audio.m3u8?audio_url=${encodeURIComponent(audio_url)}"
 `;
