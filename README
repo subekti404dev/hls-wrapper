@@ -1,0 +1,14 @@
+# Express HLS Wrapper (1080p, CORS)
+
+
+Generates HLS master and sub-playlists on the fly for separate MP4 **video** and **audio** URLs.
+- Master advertises **1920x1080** video and **Indonesian (LANGUAGE=id)** audio.
+- CORS enabled (configurable via `ALLOWED_ORIGINS`).
+
+
+## Run Locally
+```bash
+npm i
+npm start
+# or during development
+npm run dev

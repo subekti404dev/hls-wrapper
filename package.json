@@ -1,15 +1,15 @@
 {
-"name": "express-hls-wrapper",
-"version": "1.0.0",
-"description": "Express server that generates master/video/audio HLS playlists (.m3u8) wrapping separate MP4 URLs with CORS enabled.",
-"type": "module",
-"scripts": {
-"dev": "node --watch src/server.js",
-"start": "node src/server.js"
-},
-"dependencies": {
-"cors": "^2.8.5",
-"express": "^4.19.2",
-"morgan": "^1.10.0"
-}
+    "name": "express-hls-wrapper",
+    "version": "1.0.0",
+    "description": "Express server that generates master/video/audio HLS playlists (.m3u8) wrapping separate MP4 URLs with CORS enabled.",
+    "type": "module",
+    "scripts": {
+        "dev": "node --watch src/server.js",
+        "start": "node src/server.js"
+    },
+    "dependencies": {
+        "cors": "^2.8.5",
+        "express": "^4.19.2",
+        "morgan": "^1.10.0"
+    }
 }
