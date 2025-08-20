@@ -27,7 +27,7 @@ app.get("/master.m3u8", (req, res) => {
       .send("video_url and audio_url must be valid http/https URLs");
   }
 
-  const host = req.protocol + "://" + req.get("host");
+  const host = "https://" + req.get("host");
 
   const master = `#EXTM3U
 #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",LANGUAGE="id",NAME="Indonesian",DEFAULT=YES,AUTOSELECT=YES,URI="${host}/audio.m3u8?url=${encodeURIComponent(
@@ -46,7 +46,7 @@ app.get("/video.m3u8", (req, res) => {
   const { url } = req.query;
   if (!isValidUrl(url)) return res.status(400).send("Invalid video URL");
 
-  const host = req.protocol + "://" + req.get("host");
+  const host = "https://" + req.get("host");
   const playlist = `#EXTM3U
 #EXT-X-VERSION:7
 #EXT-X-TARGETDURATION:10
@@ -64,7 +64,7 @@ app.get("/audio.m3u8", (req, res) => {
   const { url } = req.query;
   if (!isValidUrl(url)) return res.status(400).send("Invalid audio URL");
 
-  const host = req.protocol + "://" + req.get("host");
+  const host = "https://" + req.get("host");
   const playlist = `#EXTM3U
 #EXT-X-VERSION:7
 #EXT-X-TARGETDURATION:10
