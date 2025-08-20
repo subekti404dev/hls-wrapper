@@ -17,7 +17,7 @@ function isValidUrl(url) {
 }
 
 // Master playlist
-app.get("/generate-master-hls", (req, res) => {
+app.get("/master.m3u8", (req, res) => {
   const { video_url, audio_url } = req.query;
 
   if (!isValidUrl(video_url) || !isValidUrl(audio_url)) {
