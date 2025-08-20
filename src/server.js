@@ -3,112 +3,114 @@ import cors from "cors";
 import fetch from "node-fetch";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.use(cors());
 
-// Simple URL validator
-const isValidUrl = (str) => {
-  try {
-    const u = new URL(str);
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-};
+/**
+ * Get content-length of remote file
+ */
+async function getFileSize(url) {
+  const resp = await fetch(url, { method: "HEAD" });
+  if (!resp.ok) throw new Error(`Failed to fetch header for ${url}`);
+  return Number(resp.headers.get("content-length"));
+}
 
-// Master playlist generator
+/**
+ * Master playlist: /master.m3u8?video_url=xxx.mp4&audio_url=yyy.mp4
+ */
 app.get("/master.m3u8", (req, res) => {
   const { video_url, audio_url } = req.query;
-
-  if (!isValidUrl(video_url) || !isValidUrl(audio_url)) {
-    return res
-      .status(400)
-      .send("video_url and audio_url must be valid http/https URLs");
+  if (!video_url || !audio_url) {
+    return res.status(400).send("video_url and audio_url are required");
   }
 
-  const host = "https://" + req.get("host");
+  const host = req.get("host");
 
   const master = `#EXTM3U
-#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",LANGUAGE="id",NAME="Indonesian",DEFAULT=YES,AUTOSELECT=YES,URI="${host}/audio.m3u8?url=${encodeURIComponent(
+#EXT-X-VERSION:3
+
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="Indonesian",LANGUAGE="id",AUTOSELECT=YES,DEFAULT=YES,URI="https://${host}/audio.m3u8?url=${encodeURIComponent(
     audio_url
   )}"
-#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1920x1080,CODECS="avc1.640028,mp4a.40.2",AUDIO="audio"
-${host}/video.m3u8?url=${encodeURIComponent(video_url)}
+
+#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1920x1080,CODECS="avc1.640029",AUDIO="audio"
+https://${host}/video.m3u8?url=${encodeURIComponent(video_url)}
 `;
 
   res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
   res.send(master);
 });
 
-// Video sub-playlist
-app.get("/video.m3u8", (req, res) => {
+/**
+ * Sub-playlists (audio/video)
+ */
+app.get("/:type.m3u8", async (req, res) => {
+  const { type } = req.params;
   const { url } = req.query;
-  if (!isValidUrl(url)) return res.status(400).send("Invalid video URL");
 
-  const host = "https://" + req.get("host");
-  const playlist = `#EXTM3U
-#EXT-X-VERSION:7
-#EXT-X-TARGETDURATION:10
-#EXT-X-PLAYLIST-TYPE:VOD
-#EXTINF:0,
-${host}/proxy?url=${encodeURIComponent(url)}
-#EXT-X-ENDLIST`;
-
-  res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-  res.send(playlist);
-});
-
-// Audio sub-playlist
-app.get("/audio.m3u8", (req, res) => {
-  const { url } = req.query;
-  if (!isValidUrl(url)) return res.status(400).send("Invalid audio URL");
-
-  const host = "https://" + req.get("host");
-  const playlist = `#EXTM3U
-#EXT-X-VERSION:7
-#EXT-X-TARGETDURATION:10
-#EXT-X-PLAYLIST-TYPE:VOD
-#EXTINF:0,
-${host}/proxy?url=${encodeURIComponent(url)}
-#EXT-X-ENDLIST`;
-
-  res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-  res.send(playlist);
-});
-
-// Proxy with Range support
-app.get("/proxy", async (req, res) => {
-  const targetUrl = req.query.url;
-  if (!isValidUrl(targetUrl)) {
-    return res.status(400).send("Invalid URL");
+  if (!url || !/^https?:\/\//.test(url)) {
+    return res.status(400).send("Missing or invalid ?url= parameter");
   }
 
   try {
-    const headers = {};
-    if (req.headers.range) {
-      headers["Range"] = req.headers.range; // forward byte range
+    const fileSize = await getFileSize(url);
+    const segmentSize = 5 * 1024 * 1024; // ~5MB per segment
+    const segments = Math.ceil(fileSize / segmentSize);
+    const host = req.get("host");
+
+    let playlist = "#EXTM3U\n";
+    playlist += "#EXT-X-VERSION:7\n";
+    playlist += "#EXT-X-TARGETDURATION:10\n";
+    playlist += "#EXT-X-MEDIA-SEQUENCE:0\n";
+
+    for (let i = 0; i < segments; i++) {
+      const start = i * segmentSize;
+      const size = i === segments - 1 ? fileSize - start : segmentSize;
+      playlist += `#EXTINF:10.0,\n`;
+      playlist += `https://${host}/segment?url=${encodeURIComponent(
+        url
+      )}&start=${start}&size=${size}\n`;
     }
 
-    const response = await fetch(targetUrl, { headers });
+    playlist += "#EXT-X-ENDLIST\n";
 
-    // Mirror status + headers
-    res.status(response.status);
-    response.headers.forEach((value, key) => {
-      res.setHeader(key, value);
-    });
-
-    // Pipe body to response
-    if (response.body) {
-      response.body.pipe(res);
-    } else {
-      res.end();
-    }
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.send(playlist);
   } catch (err) {
-    res.status(500).send("Proxy error: " + err.message);
+    console.error(err);
+    res.status(500).send("Failed to generate playlist");
   }
 });
 
+/**
+ * Proxy remote file ranges into "segments"
+ */
+app.get("/segment", async (req, res) => {
+  const { url, start, size } = req.query;
+  if (!url || !start || !size) {
+    return res.status(400).send("Missing parameters");
+  }
+
+  const startByte = Number(start);
+  const endByte = startByte + Number(size) - 1;
+
+  try {
+    const resp = await fetch(url, {
+      headers: { Range: `bytes=${startByte}-${endByte}` },
+    });
+
+    if (!resp.ok && resp.status !== 206) {
+      throw new Error(`Bad response from origin: ${resp.status}`);
+    }
+
+    res.setHeader("Content-Type", "video/mp4");
+    resp.body.pipe(res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Failed to proxy segment");
+  }
+});
+
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`✅ Express HLS wrapper running on port ${PORT}`);
 });
